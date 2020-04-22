@@ -8,7 +8,7 @@ import re
 import sys, os
 
 sdir = os.getenv("HOME")+"/.config/xfce4-genmon-rescuetime"
-adir = "/".join(sys.path[0].split("/")[:-1])
+adir = "/".join(sys.path[0].split("/")[:])
 
 # check if key is set up
 def askkey():
@@ -106,7 +106,7 @@ else:
 
 
 tooltip = "<tool>Share productive time over last {0} minutes / day</tool>".format(period)
-txtclick = "<txtclick>python3 "+adir+"chart.py</txtclick>"
+txtclick = "<txtclick>python3 "+adir+"/chart.py</txtclick>"
 icon = ""
 txt = "<txt><span weight='bold'><span fgcolor='{2}'>{0}</span>/<span fgcolor='{3}'>{1}</span></span></txt>".format(pulse_period, pulse_day, periodcolor, daycolor)
 
