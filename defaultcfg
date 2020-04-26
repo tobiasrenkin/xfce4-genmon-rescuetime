@@ -1,0 +1,23 @@
+{
+	"key": "", 
+	"app": {
+		"start_hour": 9,
+		"end_hour": 20,
+		"pulse_period_m": 30
+	},
+	"stats": {
+		"refreshperiod_d": 1,
+		"statperiod_d": 30
+	},
+	"colors": {
+		"success": "#87CF3E",
+		"medium": "#fffeb6",
+		"bad": "#870000",
+		"goal": "#388004",
+		"avg": "#ac9362",
+		"text": "#DEDEDE",
+		"bg": "#424242"
+	},
+
+	"goals": [0, 0, 0, 0, 0, 0, 0, 0, 0, 30, 60, 60, 60, 60, 30, 30, 60, 60, 60, 60, 60, 0, 0, 0]
+}
