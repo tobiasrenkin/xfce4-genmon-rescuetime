@@ -12,3 +12,7 @@ This script provides a Rescuetime applet in xfce4 panels using the generic monit
 4. Create Rescuetime API key here: https://www.rescuetime.com/anapi/manage
 5. Point generic monitor instance to app.py
 6. Enter API key when prompted
+
+# Configuration
+
+The configuration is stored in json format in ~/.config/settings.
