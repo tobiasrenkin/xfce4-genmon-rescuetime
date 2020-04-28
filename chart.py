@@ -51,13 +51,10 @@ data_today = [rawdata_today[d]/60*100 if d<now.hour else rawdata_today[d]/(now.m
 
 # calculate mean productivity for each hour in stats
 data_stats = [[] for i in range(24)]
-N = 0
 for r in rawdata_stats["rows"]:
 	time = datetime.datetime.strptime(r[0], "%Y-%m-%dT%H:%M:%S")
 	if r[1]>0 and time.weekday()<=4:
-		#print(time, r[-1])
 		data_stats[time.hour].append(r[-1])
-#print(data_stats)
 data_mean = [sum(data_stats[h])/len(data_stats[h])/60*100 if len(data_stats[h])>0 else 0 for h in range(24)]
 
 # window settings
@@ -68,7 +65,7 @@ left_offset = 35
 right_offset = 0
 max_bar_height = 200
 bottom_offset = 25
-top_offset = 35
+top_offset = 40
 
 # bar settings
 bar_width = 20
@@ -76,7 +73,7 @@ bar_gap = 10
 
 # window settings
 c_height = max_bar_height + bottom_offset + top_offset
-c_width = (bar_width + bar_gap) * max((now.hour-cfg["app"]["start_hour"]+1),6) + left_offset + right_offset
+c_width = (bar_width + bar_gap) * max((now.hour-cfg["app"]["start_hour"]+1),7) + left_offset + right_offset
 
 # define coordinate zeros and units
 x_zero = left_offset
@@ -104,6 +101,7 @@ scr_offset_top= int(m[4])
 w_pos_x = (scr_width+scr_offset_left)*0.95-c_width
 w_pos_y = (scr_height+scr_offset_top)*0.95-c_height
 
+# start window
 window = Tk()
 window.bind("<FocusOut>", on_focus_out)
 window.title("")
@@ -115,15 +113,16 @@ normal_font = font.Font(size=9)
 c = Canvas(window, width=c_width, height=c_height, bg=cfg["colors"]["bg"])
 c.pack()
 
-# draw y-axis and grid
+# draw total time text
 hours_str = str(round(total_today // 60)) + "h "
 min_str = str(round(total_today % 60)) + "min"
-total_str = "Productive time today: "
+total_str = "Total productive time: "
 if hours_str!="0h ":
 	total_str += hours_str
 total_str += min_str
 c.create_text(margin, margin, anchor="nw", text=total_str, fill=cfg["colors"]["text"])
 
+# draw y-axis and grid
 for y in range(0,101,20):
 	pos = top_offset + (max_bar_height - (y/100 * max_bar_height))
 	c.create_text(margin, pos, anchor="w", text=str(y), font=normal_font, fill=cfg["colors"]["text"])
@@ -138,8 +137,8 @@ for t, y in enumerate(data_today):
 		x1 = xc(x) + bar_width
 		y0 = yc(y) 
 		y1 = yc(0)
-		#top_offset + max_bar_height
-		# Draw the bar
+		
+		# bar color
 		if y==0:
 			color = "grey"
 		elif y<cfg["goals"][t]/2:
@@ -149,7 +148,7 @@ for t, y in enumerate(data_today):
 		else:
 			color = cfg["colors"]["success"]
 		
-		# bar and label
+		# bar and axis label
 		c.create_rectangle(x0, y0, x1, y1, fill=color, outline=color)
 		c.create_text(xc(x)+bar_width/2, yc(0)+margin, anchor="n", text=str(t), font=normal_font, fill=cfg["colors"]["text"])
 		
@@ -159,9 +158,4 @@ for t, y in enumerate(data_today):
 		if data_mean[t]>0:
 			c.create_rectangle(x0-2, yc(data_mean[t])-2, x1+2, yc(data_mean[t])+2, fill=cfg["colors"]["avg"])
 		
-
-#g_plot_line(c, range(now.hour-8), data_mean[plot_start:now.hour+1])
-
-# draw goals
-
 window.mainloop()
