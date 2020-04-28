@@ -2,6 +2,9 @@
 
 This script provides a Rescuetime panel applet. The applet displays your current (last 30 minutes) and daily productivity in the panel. On click, it provides some additional statistics about your daily productivity.
 
+![](screenshot.png "Screenshot")
+
+
 # Setup
 
 1. Install xfce4-genmon-plugin
