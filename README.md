@@ -1,6 +1,6 @@
 # About
 
-This script provides a Rescuetime applet in xfce4 panels using the generic monitor applet. The applet displays current and daily productivity in the panel. On click, it provides some additional statistics about daily productivity.
+This script provides a Rescuetime applet for xfce4 panels. The applet displays your current and daily productivity in the panel. On click, it provides some additional statistics about daily productivity.
 
 ![](screenshot.png "Screenshot")
 
@@ -16,3 +16,6 @@ This script provides a Rescuetime applet in xfce4 panels using the generic monit
 # Configuration
 
 The configuration is stored in json format in ~/.config/xfce4-genmon-rescuetime/settings.
+
+
+__Note:__ The premium version of Rescuetime updates user data every three minutes, while the free version updates only every 30 minutes. As a result, current productivity will not always be up-to-date for users with a free Rescuetime account.
