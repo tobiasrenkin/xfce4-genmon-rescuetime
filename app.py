@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import requests
-import datetime, time
+from datetime import datetime, timedelta
+import time
 import pprint
 import json
 import re
@@ -10,14 +11,16 @@ import sys, os
 ### basic definitions
 sdir = os.getenv("HOME")+"/.config/xfce4-genmon-rescuetime"
 adir = "/".join(sys.path[0].split("/")[:])
-now = datetime.datetime.now()
-today = datetime.datetime.today().strftime('%Y-%m-%d')
-tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+
+now = datetime.now()
+today = datetime.today().strftime('%Y-%m-%d')
+tomorrow = (datetime.today() + timedelta(days=1)).strftime('%Y-%m-%d')
 
 ########################################################################
 
-def quitwithna(text="NA"):
-	print("<txtclick>python3 "+adir+"/chart.py</txtclick><txt><span weight='bold'><span fgcolor="+cfg["colors"]["text"]+">"+text+"</span></span></txt>")
+def quit(text="NA"):
+	print("<txtclick>python3 {0}/chart.py</txtclick><txt><span weight='bold'><span fgcolor={1}>{2}</span></span></txt>".format(
+		adir, cfg["colors"]["text"], text))
 	sys.exit()
 
 def askkey():
@@ -30,28 +33,24 @@ def askkey():
 	return key
 
 def api_request(key, interval, start, end):
-	# get basic json data
 	rspec = {"format": "json", "by": "interval", "rk": "productivity", "key": key,
 		"interval": interval,
 		"rb": start,
 		"re": end
 	}
 	rstr = "https://www.rescuetime.com/anapi/data" + "?" + "&".join([k+"="+rspec[k] for k in rspec.keys()])
-
 	try:
 		apianswer = requests.get(rstr).text
 	except:
 		raise URLError
 
 	rawdata = json.loads(apianswer)
-	
+	# rawdata[rows] format: datetime, minutes, ....., productivity level.
 	# reformat to [%Y-m-dT%H:%M:%S, productivity, minutes]; Add interval (hours, minutes, etc.) and time stamp
-	data = {}
-	data["interval"] = interval
-	data["timestamp"] = time.time()
-	data["rows"] = []
+	data = {"interval": interval, "timestamp": time.time(), "rows": []}
 	for r in rawdata["rows"]:
-		data["rows"].append([r[0], r[-1], r[1]/60])
+		data["rows"].append({"prod": r[-1], "min": r[1]/60, "time": r[0]})
+	
 	return data
 
 
@@ -59,53 +58,45 @@ def api_request(key, interval, start, end):
 
 # load settings, else use default
 with open(adir+"/defaultcfg", "r") as f:
-		defaultcfg = json.loads(f.read())
-
-if os.path.exists(sdir+"/settings"):
-	with open(sdir+"/settings", "r") as f:
 		cfg = json.loads(f.read())
-else:
-	cfg = defaultcfg
-		
-if "key" not in cfg:
-	cfg["key"] = askkey()
-elif "key" == "":
-	cfg["key"] = askkey()
 
-cfg["app"].setdefault("start_hour", defaultcfg["app"]["start_hour"])
-cfg["app"].setdefault("end_hour", defaultcfg["app"]["end_hour"])
-cfg["app"].setdefault("pulse_period_m", defaultcfg["app"]["pulse_period_m"])
-cfg["stats"].setdefault("refreshperiod_d", defaultcfg["stats"]["refreshperiod_d"])
-cfg["stats"].setdefault("statperiod_d", defaultcfg["stats"]["statperiod_d"])
-cfg["colors"].setdefault("bad", defaultcfg["colors"]["bad"])
-cfg["colors"].setdefault("medium", defaultcfg["colors"]["medium"])
-cfg["colors"].setdefault("success", defaultcfg["colors"]["success"])
-cfg["colors"].setdefault("avg", defaultcfg["colors"]["avg"])
-cfg["colors"].setdefault("goal", defaultcfg["colors"]["goal"])
-cfg["colors"].setdefault("text", defaultcfg["colors"]["text"])
-cfg["colors"].setdefault("bg", defaultcfg["colors"]["bg"])
-cfg.setdefault("goals", defaultcfg["goals"])
+try:
+	with open(sdir+"/settings", "r") as f:
+		usercfg = json.loads(f.read())
+except:
+	usercfg = {}
+
+for key in cfg:
+	if key in usercfg:
+		if isinstance(cfg[key],dict):
+			for subkey in cfg[key]:
+				if subkey in usercfg[key]:
+					cfg[key][subkey] = usercfg[key][subkey]
+		else:
+			cfg[key] = usercfg[key]
+
+if cfg.get("key", "") == "":
+	cfg["key"] = askkey()
 
 ########################################################################
 
 # if outside of app hours, quit now
 if now.hour<cfg["app"]["start_hour"] or now.hour>=cfg["app"]["end_hour"]:
-	quitwithna("FREE")
+	quit("Free")
 
-# download data from last Y days every once in a while
-
+# refresh data from last Y days every once in a while
 refresh = False
 try:
 	with open(sdir+"/yearlystats", "r") as f:
 		data_stats = json.loads(f.read())
-	lastrefresh = datetime.datetime.fromtimestamp(data_stats["timestamp"])
-	if (now - lastrefresh).days > cfg["stats"]["refreshperiod_d"]:
-		refresh = True
+	lastrefresh = datetime.fromtimestamp(data_stats["timestamp"])
 except (KeyError, IOError):
+	refresh = True
+if (now - lastrefresh).days > cfg["stats"]["refreshperiod_d"]:
 	refresh = True
 
 if refresh:
-	rb = (datetime.datetime.today() - datetime.timedelta(days=cfg["stats"]["statperiod_d"])).strftime('%Y-%m-%d')
+	rb = (datetime.today() - timedelta(days=cfg["stats"]["statperiod_d"])).strftime('%Y-%m-%d')
 	try:
 		data_stats = api_request(cfg["key"], "hour", rb, today)
 		with open(sdir+"/yearlystats", "w") as f:
@@ -117,37 +108,24 @@ if refresh:
 
 # get todays data
 try:
-	data_today = api_request(cfg["key"], "minute", today, tomorrow)
+	data = api_request(cfg["key"], "minute", today, tomorrow)["rows"]
 except URLError:
-	quitwithna("404")
+	quit("404")
 
 # calc pulse: % productive time over _period_ minutes
-
 period = cfg["app"]["pulse_period_m"]
-cutoff = now - datetime.timedelta(minutes=period)
+cutoff = now - timedelta(minutes=period)
 
-prodtime_period = 0
-prodtime_day = 0
-totaltime_day = 0
-prodtime_hours = [0]*24
+totaltime_day = sum([d["min"] for d in data])
+prodtime_day = sum([d["min"] for d in data if d["prod"]>0])
+prodtime_period = sum([d["min"] for d in data if d["prod"]>0 and datetime.strptime(d["time"], "%Y-%m-%dT%H:%M:%S")>cutoff])
+prodtime_hours = [sum([d["min"] for d in data if d["prod"]>0 and datetime.strptime(d["time"], "%Y-%m-%dT%H:%M:%S").hour==t]) for t in range(24)]
 
-for r in data_today["rows"]:
-	time = datetime.datetime.strptime(r[0], "%Y-%m-%dT%H:%M:%S")
-	totaltime_day += r[-1]
-	if r[1] > 0:
-		prodtime_day += r[-1]
-		prodtime_hours[time.hour] += r[-1]
-		if time > cutoff:
-			prodtime_period += r[-1]
+pulse_period = round(prodtime_period / period * 100)
+pulse_day = round(prodtime_day / totaltime_day * 100) if totaltime_day > 0 else 0
 
 with open(sdir+"/cache", "w") as f:
 	f.write(json.dumps(prodtime_hours))
-
-pulse_period = round(prodtime_period / period * 100)
-if totaltime_day > 0:
-	pulse_day = round(prodtime_day / totaltime_day * 100)
-else:
-	pulse_day = 0
 
 # format output
 if pulse_period==0:
@@ -168,10 +146,10 @@ elif pulse_day<66:
 else:
 	daycolor=cfg["colors"]["success"]
 
-
 tooltip = "<tool>Share productive time over last {0} minutes / day</tool>".format(period)
-txtclick = "<txtclick>python3 "+adir+"/chart.py</txtclick>"
+txtclick = "<txtclick>python3 {0}/chart.py</txtclick>".format(adir)
 icon = ""
-txt = "<txt><span weight='bold'><span fgcolor='{2}'>{0}</span>/<span fgcolor='{3}'>{1}</span></span></txt>".format(pulse_period, pulse_day, periodcolor, daycolor)
+txt = "<txt><span weight='bold'><span fgcolor='{2}'>{0}</span>/<span fgcolor='{3}'>{1}</span></span></txt>".format(
+	pulse_period, pulse_day, periodcolor, daycolor)
 
 print(tooltip+txtclick+icon+txt)
