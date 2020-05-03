@@ -2,11 +2,15 @@
 
 import requests
 from datetime import datetime, timedelta
+from dateutil.parser import parse
+import collections
 import time
 import pprint
 import json
 import re
 import sys, os
+
+from utils import gencfg
 
 ### basic definitions
 sdir = os.getenv("HOME")+"/.config/xfce4-genmon-rescuetime"
@@ -16,12 +20,16 @@ now = datetime.now()
 today = datetime.today().strftime('%Y-%m-%d')
 tomorrow = (datetime.today() + timedelta(days=1)).strftime('%Y-%m-%d')
 
+tooltip = "<tool></tool>"
+txtclick = "<txtclick>python3 {0}/chart.py</txtclick>".format(adir)
+icon = ""
+
 ########################################################################
 
-def quit(text="NA"):
-	print("<txtclick>python3 {0}/chart.py</txtclick><txt><span weight='bold'><span fgcolor={1}>{2}</span></span></txt>".format(
-		adir, cfg["colors"]["text"], text))
-	sys.exit()
+def stop(text="NA"):
+	print(tootltip+txtclick+"<txt><span weight='bold'><span fgcolor={1}>{2}</span></span></txt>".format(
+		cfg["colors"]["text"], text))
+	sys.exit(0)
 
 def askkey():
 	import tkinter as tk
@@ -33,66 +41,46 @@ def askkey():
 	return key
 
 def api_request(key, interval, start, end):
-	rspec = {"format": "json", "by": "interval", "rk": "productivity", "key": key,
-		"interval": interval,
-		"rb": start,
-		"re": end
-	}
+	rspec = {"format": "json", "by": "interval", "rk": "productivity", "key": key, "interval": interval, "rb": start, "re": end}
 	rstr = "https://www.rescuetime.com/anapi/data" + "?" + "&".join([k+"="+rspec[k] for k in rspec.keys()])
 	try:
 		apianswer = requests.get(rstr).text
 	except:
 		raise URLError
-
 	rawdata = json.loads(apianswer)
+
 	# rawdata[rows] format: datetime, minutes, ....., productivity level.
 	# reformat to [%Y-m-dT%H:%M:%S, productivity, minutes]; Add interval (hours, minutes, etc.) and time stamp
-	data = {"interval": interval, "timestamp": time.time(), "rows": []}
-	for r in rawdata["rows"]:
-		data["rows"].append({"prod": r[-1], "min": r[1]/60, "time": r[0]})
-	
+	data = {"interval": interval, "timestamp": time.time()}
+	data["rows"] = [{"prod": r[-1], "min": r[1]/60, "time": r[0]} for r in rawdata["rows"]]
 	return data
 
 
 ########################################################################
 
 # load settings, else use default
-with open(adir+"/defaultcfg", "r") as f:
-		cfg = json.loads(f.read())
-
-try:
-	with open(sdir+"/settings", "r") as f:
-		usercfg = json.loads(f.read())
-except:
-	usercfg = {}
-
-for key in cfg:
-	if key in usercfg:
-		if isinstance(cfg[key],dict):
-			for subkey in cfg[key]:
-				if subkey in usercfg[key]:
-					cfg[key][subkey] = usercfg[key][subkey]
-		else:
-			cfg[key] = usercfg[key]
+cfg = gencfg(adir+"/defaultcfg", sdir+"/settings")
 
 if cfg.get("key", "") == "":
 	cfg["key"] = askkey()
+	with open(sdir+"/settings", "w") as f:
+		f.write(json.dumps(cfg))
 
 ########################################################################
 
 # if outside of app hours, quit now
-if now.hour<cfg["app"]["start_hour"] or now.hour>=cfg["app"]["end_hour"]:
-	quit("Free")
+if now.hour < cfg["app"]["start_hour"] or now.hour >= cfg["app"]["end_hour"]:
+	stop("Free")
 
-# refresh data from last Y days every once in a while
+########################################################################
+
+# refresh data used for stats every once in a while
+
 refresh = False
 try:
-	with open(sdir+"/yearlystats", "r") as f:
-		data_stats = json.loads(f.read())
-	lastrefresh = datetime.fromtimestamp(data_stats["timestamp"])
-except (KeyError, IOError):
-	refresh = True
-if (now - lastrefresh).days > cfg["stats"]["refreshperiod_d"]:
+	if (now - datetime.fromtimestamp(os.path.getmtime(sdir+"/yearlystats"))).days > cfg["stats"]["refreshperiod_d"]:
+		refresh = True
+except OSError:
 	refresh = True
 
 if refresh:
@@ -112,44 +100,34 @@ try:
 except URLError:
 	quit("404")
 
+########################################################################
+
 # calc pulse: % productive time over _period_ minutes
+timefmt = "%Y-%m-%dT%H:%M:%S"
 period = cfg["app"]["pulse_period_m"]
 cutoff = now - timedelta(minutes=period)
 
 totaltime_day = sum([d["min"] for d in data])
-prodtime_day = sum([d["min"] for d in data if d["prod"]>0])
-prodtime_period = sum([d["min"] for d in data if d["prod"]>0 and datetime.strptime(d["time"], "%Y-%m-%dT%H:%M:%S")>cutoff])
-prodtime_hours = [sum([d["min"] for d in data if d["prod"]>0 and datetime.strptime(d["time"], "%Y-%m-%dT%H:%M:%S").hour==t]) for t in range(24)]
+prodtime_day = sum([d["min"] for d in data if d["prod"] > 0])
+prodtime_period = sum([d["min"] for d in data if d["prod"] > 0 and datetime.strptime(d["time"], timefmt) > cutoff])
+prodtime_hours = [sum([d["min"] for d in data if d["prod"] > 0 and datetime.strptime(d["time"], timefmt).hour == t]) for t in range(24)]
 
-pulse_period = round(prodtime_period / period * 100)
-pulse_day = round(prodtime_day / totaltime_day * 100) if totaltime_day > 0 else 0
+p_pd = prodtime_period / period * 100
+p_day = prodtime_day / totaltime_day * 100 if totaltime_day > 0.0 else 0.0
 
 with open(sdir+"/cache", "w") as f:
 	f.write(json.dumps(prodtime_hours))
 
-# format output
-if pulse_period==0:
-	periodcolor="grey"
-elif pulse_period<cfg["goals"][now.hour]/2:
-	periodcolor=cfg["colors"]["bad"]
-elif pulse_period<cfg["goals"][now.hour]:
-	periodcolor=cfg["colors"]["medium"]
-else:
-	periodcolor=cfg["colors"]["success"]
+########################################################################
 
-if pulse_day==0:
-	daycolor="grey"
-elif pulse_day<33:
-	daycolor=cfg["colors"]["bad"]
-elif pulse_day<66:
-	daycolor=cfg["colors"]["medium"]
-else:
-	daycolor=cfg["colors"]["success"]
+# format and output
 
-tooltip = "<tool>Share productive time over last {0} minutes / day</tool>".format(period)
-txtclick = "<txtclick>python3 {0}/chart.py</txtclick>".format(adir)
-icon = ""
-txt = "<txt><span weight='bold'><span fgcolor='{2}'>{0}</span>/<span fgcolor='{3}'>{1}</span></span></txt>".format(
-	pulse_period, pulse_day, periodcolor, daycolor)
+gls = cfg["goals"]
+t = now.hour
+color_pd = "bad" if p_pd < gls[t]/2 else "medium" if p_pd < gls[t] else "success"
+color_day = "bad" if p_day < 33 else "medium" if p_day < 66 else "success"
+
+txt = ("<txt><span weight='bold'><span fgcolor='%s'>%.0f</span>/<span fgcolor='%s'>%.0f</span></span></txt>" 
+	% (cfg["colors"][color_pd], p_pd, cfg["colors"][color_day], p_day))
 
 print(tooltip+txtclick+icon+txt)
