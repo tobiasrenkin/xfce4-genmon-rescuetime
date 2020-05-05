@@ -2,7 +2,7 @@
 
 This script provides a Rescuetime applet for xfce4 panels. The applet displays your current and daily productivity in the panel. On click, it provides some additional statistics about daily productivity.
 
-![Screenshot](screenshot.png) <!-- .element width="50%" -->
+![Screenshot](screenshot.png) <!-- .element width="25%" -->
 
 # Setup
 
