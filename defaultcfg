@@ -5,6 +5,16 @@
 		"end_hour": 20,
 		"pulse_period_m": 30
 	},
+	"chart": {
+		"margin": 5,
+		"left_offset": 35,
+		"right_offset": 0,
+		"max_bar_height": 200,
+		"bottom_offset": 25,
+		"top_offset": 40,
+		"bar_width": 20,
+		"bar_gap": 10
+	},
 	"stats": {
 		"refreshperiod_d": 1,
 		"statperiod_d": 30
@@ -18,6 +28,5 @@
 		"text": "#DEDEDE",
 		"bg": "#424242"
 	},
-
 	"goals": [0, 0, 0, 0, 0, 0, 0, 0, 0, 30, 60, 60, 60, 60, 30, 30, 60, 60, 60, 60, 60, 0, 0, 0]
 }

@@ -14,6 +14,8 @@ from utils import gencfg
 
 ### basic definitions
 sdir = os.getenv("HOME")+"/.config/xfce4-genmon-rescuetime"
+if not(os.path.exists(sdir)):
+	os.mkdir(sdir)
 adir = "/".join(sys.path[0].split("/")[:])
 
 now = datetime.now()
@@ -27,7 +29,7 @@ icon = ""
 ########################################################################
 
 def stop(text="NA"):
-	print(tootltip+txtclick+"<txt><span weight='bold'><span fgcolor={1}>{2}</span></span></txt>".format(
+	print(tooltip+txtclick+"<txt><span weight='bold'><span fgcolor={0}>{1}</span></span></txt>".format(
 		cfg["colors"]["text"], text))
 	sys.exit(0)
 
